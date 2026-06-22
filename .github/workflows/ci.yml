@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  question-1-sql:
+    name: Q1 - RBAC fix validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate the permission fix
+        run: node validate.js
+        working-directory: question-1-sql
+
+  question-2-api:
+    name: Q2 - Resources API suite (Newman vs mock)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: question-2-api-test-plan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: question-2-api-test-plan/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run the Postman suite against the bundled mock
+        run: npm run test:mock

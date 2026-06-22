@@ -1,5 +1,7 @@
 # QA Case
 
+[![CI](https://github.com/Joselv1990/klavi-qa-case/actions/workflows/ci.yml/badge.svg)](https://github.com/Joselv1990/klavi-qa-case/actions/workflows/ci.yml)
+
 > **Start here:** [`ANSWERS.md`](ANSWERS.md) for both answers at a glance, and
 > [`RESULTS.md`](RESULTS.md) for the captured verification output.
 

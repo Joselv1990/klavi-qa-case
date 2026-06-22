@@ -1,0 +1,14 @@
+{
+  "name": "resources-api-tests",
+  "version": "1.0.0",
+  "description": "Newman-driven Postman test suite for the Resources API.",
+  "private": true,
+  "scripts": {
+    "test": "newman run postman/resources-api.postman_collection.json -e postman/resources-api.postman_environment.json",
+    "test:report": "newman run postman/resources-api.postman_collection.json -e postman/resources-api.postman_environment.json -r cli,htmlextra --reporter-htmlextra-export newman/report.html"
+  },
+  "devDependencies": {
+    "newman": "^6.2.1",
+    "newman-reporter-htmlextra": "^1.23.1"
+  }
+}

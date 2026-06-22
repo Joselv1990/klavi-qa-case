@@ -1,0 +1,251 @@
+{
+  "info": {
+    "name": "Resources API",
+    "description": "Functional, contract, negative and deterministic-security checks for the Resources API. Point {{baseUrl}} at the sandbox and provide {{accessToken}} (and {{otherConsentResourceId}} for the isolation test) via the environment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "resourceType", "value": "ACCOUNT,CREDIT_CARD_ACCOUNT,LOAN,FINANCING,INVOICE_FINANCING,UNARRANGED_ACCOUNT_OVERDRAFT" },
+    { "key": "resourceStatus", "value": "AVAILABLE,UNAVAILABLE,TEMPORARILY_UNAVAILABLE,PENDING_AUTHORISATION" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Generate a fresh FAPI interaction id per request and stash it for the echo check.",
+          "const uuid = require('uuid');",
+          "const interactionId = uuid.v4();",
+          "pm.collectionVariables.set('interactionId', interactionId);",
+          "pm.request.headers.upsert({ key: 'x-fapi-interaction-id', value: interactionId });",
+          "pm.request.headers.upsert({ key: 'x-fapi-auth-date', value: new Date().toUTCString() });",
+          "pm.request.headers.upsert({ key: 'x-fapi-customer-ip-address', value: '198.51.100.10' });",
+          "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "F-01 List resources - happy path",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "url": {
+          "raw": "{{baseUrl}}/resources/v3/resources?page-size=25",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "resources", "v3", "resources" ],
+          "query": [ { "key": "page-size", "value": "25" } ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const validTypes = pm.collectionVariables.get('resourceType').split(',');",
+              "const validStatus = pm.collectionVariables.get('resourceStatus').split(',');",
+              "",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('Content-Type is application/json', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json'));",
+              "pm.test('echoes x-fapi-interaction-id', () => pm.expect(pm.response.headers.get('x-fapi-interaction-id')).to.eql(pm.collectionVariables.get('interactionId')));",
+              "",
+              "const body = pm.response.json();",
+              "pm.test('envelope has data, links, meta', () => {",
+              "  pm.expect(body).to.have.property('data').that.is.an('array');",
+              "  pm.expect(body).to.have.property('links');",
+              "  pm.expect(body).to.have.property('meta');",
+              "});",
+              "pm.test('page-size honored', () => pm.expect(body.data.length).to.be.at.most(25));",
+              "pm.test('meta counts are consistent', () => {",
+              "  pm.expect(body.meta.totalRecords).to.be.a('number');",
+              "  pm.expect(body.meta.totalPages).to.be.a('number');",
+              "});",
+              "pm.test('every resource matches the contract', () => {",
+              "  body.data.forEach((r) => {",
+              "    pm.expect(r.resourceId, 'resourceId').to.be.a('string').and.to.have.length.below(101);",
+              "    pm.expect(validTypes, 'type').to.include(r.type);",
+              "    pm.expect(validStatus, 'status').to.include(r.status);",
+              "  });",
+              "});",
+              "",
+              "// Capture a real id for the detail tests.",
+              "if (body.data.length) { pm.collectionVariables.set('resourceId', body.data[0].resourceId); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "F-04 List resources - pagination links",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "url": {
+          "raw": "{{baseUrl}}/resources/v3/resources?page-size=1",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "resources", "v3", "resources" ],
+          "query": [ { "key": "page-size", "value": "1" } ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('at most one record returned', () => pm.expect(body.data.length).to.be.at.most(1));",
+              "pm.test('self link present', () => pm.expect(body.links).to.have.property('self'));",
+              "pm.test('next link present when more pages exist', () => {",
+              "  if (body.meta.totalPages > 1) { pm.expect(body.links.next, 'links.next').to.be.a('string'); }",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "F-11 Resource detail - existing id",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "url": {
+          "raw": "{{baseUrl}}/resources/v3/resources/{{resourceId}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "resources", "v3", "resources", "{{resourceId}}" ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('returns the requested resource', () => {",
+              "  const data = Array.isArray(body.data) ? body.data[0] : body.data;",
+              "  pm.expect(data.resourceId).to.eql(pm.collectionVariables.get('resourceId'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "F-12 Resource detail - not found",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "url": {
+          "raw": "{{baseUrl}}/resources/v3/resources/non-existent-id-000000",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "resources", "v3", "resources", "non-existent-id-000000" ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+              "pm.test('no server error leaked', () => pm.expect(pm.response.text()).to.not.match(/stack|sql|exception/i));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "S-01 Consent isolation - other consent's resource",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "url": {
+          "raw": "{{baseUrl}}/resources/v3/resources/{{otherConsentResourceId}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "resources", "v3", "resources", "{{otherConsentResourceId}}" ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('access to another consent is denied (403 or 404)', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));",
+              "pm.test('does not leak the other consent data', () => {",
+              "  if (pm.response.code === 403 || pm.response.code === 404) {",
+              "    pm.expect(pm.response.text()).to.not.include(pm.environment.get('otherConsentResourceId'));",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "E-01 Missing Authorization header",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/resources/v3/resources",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "resources", "v3", "resources" ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "E-07 Unsupported Accept",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Accept", "value": "text/xml" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/resources/v3/resources",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "resources", "v3", "resources" ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// override the collection-level Accept=application/json for this negative case",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'text/xml' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('406 Not Acceptable', () => pm.response.to.have.status(406));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

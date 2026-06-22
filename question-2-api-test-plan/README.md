@@ -21,9 +21,14 @@ the CLI):
 | `otherConsentResourceId` | A resourceId from a **different** consent (isolation test)  |
 
 ```bash
-npm test                 # CLI reporter
+npm test                 # CLI reporter, against the configured sandbox environment
 npm run test:report      # also writes newman/report.html
+npm run test:mock        # boots the bundled mock and runs the suite green (no sandbox needed)
 ```
+
+`test:mock` starts `mock/server.js` (a contract-shaped stand-in, not the implementation
+under test), runs the collection against it, and shuts it down — useful to confirm the
+suite executes end-to-end. Captured output is in [`../RESULTS.md`](../RESULTS.md).
 
 Override a value without editing the file:
 

@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "test": "newman run postman/resources-api.postman_collection.json -e postman/resources-api.postman_environment.json",
-    "test:report": "newman run postman/resources-api.postman_collection.json -e postman/resources-api.postman_environment.json -r cli,htmlextra --reporter-htmlextra-export newman/report.html"
+    "test:report": "newman run postman/resources-api.postman_collection.json -e postman/resources-api.postman_environment.json -r cli,htmlextra --reporter-htmlextra-export newman/report.html",
+    "test:mock": "node run-mock-suite.js"
   },
   "devDependencies": {
     "newman": "^6.2.1",

@@ -1,5 +1,8 @@
 # QA Case
 
+> **Start here:** [`ANSWERS.md`](ANSWERS.md) for both answers at a glance, and
+> [`RESULTS.md`](RESULTS.md) for the captured verification output.
+
 Solution for a two-part QA case study:
 
 - **Question 1** — Diagnose a broken role/permission setup and fix it with a single SQL statement (MySQL 8).

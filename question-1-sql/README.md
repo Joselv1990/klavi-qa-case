@@ -64,7 +64,13 @@ WHERE  user_id = 2           -- Taylor
 Taylor can now see and modify products and can no longer create or delete them
 (no inventory changes). Ariel and Luka are unaffected.
 
-## Run it end-to-end
+## Verify without a database (no Docker needed)
+
+```bash
+node validate.js   # resolves permissions before/after the fix; exits non-zero on mismatch
+```
+
+## Run it end-to-end on MySQL 8
 
 ```bash
 docker compose up -d

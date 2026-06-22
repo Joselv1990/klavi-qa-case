@@ -27,16 +27,18 @@ PASS
 ## Question 2 — `npm run test:mock` (Newman against the bundled mock)
 
 ```
-→ F-01 List resources - happy path        [200] √ 7 assertions
-→ F-04 List resources - pagination links   [200] √ 4 assertions
-→ F-11 Resource detail - existing id       [200] √ 2 assertions
-→ F-12 Resource detail - not found         [404] √ 2 assertions
-→ S-01 Consent isolation                   [403] √ 2 assertions
-→ E-01 Missing Authorization header        [401] √ 1 assertion
-→ E-07 Unsupported Accept                  [406] √ 1 assertion
+→ F-01 List resources - happy path             [200] √ 7 assertions
+→ F-04 List resources - pagination links        [200] √ 4 assertions
+→ S-01 Consent isolation (token of consent B)   [200] √ 2 assertions
+→ E-01 Missing Authorization header             [401] √ 1 assertion
+→ E-05 Missing x-fapi-interaction-id            [400] √ 1 assertion
+→ E-07 Unsupported Accept                       [406] √ 1 assertion
 
-assertions: 19 executed, 0 failed
+assertions: 16 executed, 0 failed
 ```
+
+Endpoint and enums match the official Open Finance Brasil **API Recursos v3.0.0** OpenAPI
+contract (`GET /open-banking/resources/v3/resources`, list-only).
 
 The mock is a stand-in only; real runs target the sandbox via `npm test` with the
 environment pointed at the live Resources API.

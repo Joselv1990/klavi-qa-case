@@ -28,12 +28,15 @@ Verified — see [`question-1-sql/`](question-1-sql/) (`node validate.js`, or th
 
 ## Question 2 — Resources API test plan
 
-Full plan in [`question-2-api-test-plan/test-plan.md`](question-2-api-test-plan/test-plan.md):
-scope, test levels (contract / functional / security / performance / resilience /
-regression), detailed functional + negative cases, a security section centered on
-**consent/scope isolation** (the core risk in sharing client data between institutions),
-non-functional targets, entry/exit criteria, risk-based prioritization, and reporting.
+Aligned to the official **Open Finance Brasil — API Recursos (Resources) v3.0.0** OpenAPI
+contract (single list endpoint `GET /open-banking/resources/v3/resources`; type/status
+enums and response codes per spec). Full plan in
+[`question-2-api-test-plan/test-plan.md`](question-2-api-test-plan/test-plan.md): scope,
+test levels (contract / functional / security / performance / resilience / regression),
+detailed functional + negative cases, a security section centered on **consent/scope
+isolation** (the core risk in sharing client data between institutions), non-functional
+targets, entry/exit criteria, risk-based prioritization, and reporting.
 
 A runnable subset is automated as a Postman collection executed with Newman. It passes
-green against the included mock (`npm run test:mock` → 19/19 assertions). See
+green against the included mock (`npm run test:mock` → 16/16 assertions). See
 [`RESULTS.md`](RESULTS.md) for captured output.

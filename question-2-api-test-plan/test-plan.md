@@ -13,19 +13,23 @@ API is expected to follow the security profile common to open-finance ecosystems
 (OAuth 2.0 + FAPI, consent-scoped access, mTLS, FAPI interaction headers). The plan treats
 those as first-class requirements, not afterthoughts.
 
-### 1.1 API under test (assumed contract)
+### 1.1 API under test
 
-| Method | Path                                  | Purpose                                   |
-|--------|---------------------------------------|-------------------------------------------|
-| GET    | `/resources/v3/resources`             | List the consented resources (paginated)  |
-| GET    | `/resources/v3/resources/{resourceId}`| Detail / status of a single resource      |
+Per the official **Open Finance Brasil — API Recursos (Resources) v3.0.0** OpenAPI
+contract, the API exposes a **single list endpoint** (there is no detail-by-id endpoint):
 
-Resource object (key fields):
+| Method | Path                                      | Purpose                                  |
+|--------|-------------------------------------------|------------------------------------------|
+| GET    | `/open-banking/resources/v3/resources`    | List the consented resources (paginated) |
+
+Query parameters: `page`, `page-size`.
+
+Resource object fields:
 
 | Field        | Notes                                                                 |
 |--------------|-----------------------------------------------------------------------|
 | `resourceId` | Opaque id, max 100 chars                                              |
-| `type`       | Enum: `ACCOUNT`, `CREDIT_CARD_ACCOUNT`, `LOAN`, `FINANCING`, `INVOICE_FINANCING`, `UNARRANGED_ACCOUNT_OVERDRAFT`, … |
+| `type`       | Enum: `ACCOUNT`, `CREDIT_CARD_ACCOUNT`, `LOAN`, `FINANCING`, `UNARRANGED_ACCOUNT_OVERDRAFT`, `INVOICE_FINANCING`, `BANK_FIXED_INCOME`, `CREDIT_FIXED_INCOME`, `VARIABLE_INCOME`, `TREASURE_TITLE`, `FUND`, `EXCHANGE` |
 | `status`     | Enum: `AVAILABLE`, `UNAVAILABLE`, `TEMPORARILY_UNAVAILABLE`, `PENDING_AUTHORISATION` |
 
 Envelope: `data[]`, `links` (`self`, `first`, `prev`, `next`, `last`), `meta`
@@ -34,6 +38,9 @@ Envelope: `data[]`, `links` (`self`, `first`, `prev`, `next`, `last`), `meta`
 Required request headers: `Authorization: Bearer <token>`, `x-fapi-interaction-id`
 (UUID, echoed back), `x-fapi-auth-date`, `x-fapi-customer-ip-address`, `Accept:
 application/json`.
+
+Documented response codes: `200`, `202`, `400`, `401`, `403`, `404`, `405`, `406`,
+`429`, `500`, `504`, `529`.
 
 ## 2. Objectives
 
@@ -48,7 +55,7 @@ application/json`.
 
 **In scope**
 
-- Functional behavior of both endpoints (list + detail).
+- Functional behavior of the single list endpoint.
 - Contract / schema conformance (status codes, response shape, enums, headers).
 - AuthN/AuthZ: token validity, scope, consent binding, expiry/revocation.
 - Negative and boundary cases, error responses.
@@ -78,7 +85,7 @@ and resilience are described here and run with the dedicated tools above.
 
 ## 5. Functional test scenarios
 
-### 5.1 List resources — `GET /resources/v3/resources`
+### 5.1 List resources — `GET /open-banking/resources/v3/resources`
 
 | # | Scenario | Expected |
 |---|----------|----------|
@@ -86,21 +93,17 @@ and resilience are described here and run with the dedicated tools above.
 | F-02 | Valid consent with **no** resources | `200`; `data` = `[]`; `meta.totalRecords` = 0 (empty list, not an error) |
 | F-03 | Schema conformance | All fields match types/enums; no extra/undocumented fields; `resourceId` ≤ 100 chars |
 | F-04 | Pagination — `page-size` honored | `200`; `data.length` ≤ `page-size`; `links.next` present when more pages exist |
-| F-05 | Pagination — navigate `next`/`last` | Following `links.next` returns subsequent page; `last` page has no `next` |
-| F-06 | Pagination — page beyond range | Graceful empty page or `422`/`400` per spec; never `500` |
+| F-05 | Pagination — navigate `page` / `next` / `last` | Following `links.next` returns subsequent page; `last` page has no `next` |
+| F-06 | Pagination — page beyond range | Graceful empty page or `400` per spec; never `500` |
 | F-07 | All resource `type` values represent correctly | Each documented type seen in test data is returned with the right label |
 | F-08 | `status` reflects real availability | A resource set to `TEMPORARILY_UNAVAILABLE` upstream is reported as such |
 | F-09 | `x-fapi-interaction-id` echo | Response echoes the same id sent by the client |
 | F-10 | `meta.totalRecords` / `totalPages` consistency | Counts match the actual number of returned/total records |
+| F-11 | `202 Accepted` handling (deferred response) | If the institution returns `202`, the consumer polls/retries per spec; not treated as final data |
 
-### 5.2 Resource detail — `GET /resources/v3/resources/{resourceId}`
-
-| # | Scenario | Expected |
-|---|----------|----------|
-| F-11 | Existing resourceId within consent | `200`; single resource matching the id |
-| F-12 | Well-formed id that does not exist | `404` with standard error body |
-| F-13 | resourceId belonging to **another** consent/customer | `403`/`404` — **must not** leak that it exists or its data |
-| F-14 | Malformed / oversized resourceId | `400`/`422`; no stack trace, no `500` |
+> The Resources API has **no detail-by-id endpoint** — it is list-only. Per-resource
+> identity/authorization (IDOR) therefore does not apply at this API; consent isolation is
+> enforced on the list (see S-01).
 
 ## 6. Negative & error-handling tests
 
@@ -110,10 +113,10 @@ and resilience are described here and run with the dedicated tools above.
 | E-02 | Expired / invalid / tampered token | `401` |
 | E-03 | Valid token, **wrong/insufficient scope** | `403` |
 | E-04 | Valid token but consent **revoked / expired** | `401`/`403` per spec; no data returned |
-| E-05 | Missing required FAPI headers (`x-fapi-interaction-id`, `x-fapi-auth-date`) | `400` |
+| E-05 | Missing required FAPI header (`x-fapi-interaction-id`) | `400` |
 | E-06 | Malformed `x-fapi-interaction-id` (not a UUID) | `400` |
 | E-07 | Unsupported `Accept` (e.g. `text/xml`) | `406` |
-| E-08 | Unsupported method (`POST`/`DELETE` on read endpoint) | `405` |
+| E-08 | Unsupported method (`POST`/`PUT`/`DELETE` on read endpoint) | `405` |
 | E-09 | Error bodies follow the standard error schema | `code`, `title`, `detail`; no internal/PII leakage |
 
 ## 7. Security testing
@@ -122,12 +125,12 @@ The biggest risk is **a consumer institution seeing data it was never authorized
 
 | # | Area | Check |
 |---|------|-------|
-| S-01 | Consent isolation (BOLA/IDOR) | Token for consent A can never read resources of consent B; iterate/guess `resourceId`s |
+| S-01 | Consent isolation | A token bound to consent B returns only consent B's resources — never any resource of consent A. Verified by comparing the `resourceId`s returned per consent |
 | S-02 | Scope enforcement | Token without `resources` scope is rejected (`403`) |
 | S-03 | Token validation | Expired, `alg:none`, wrong audience/issuer, bad signature all rejected |
 | S-04 | Transport security | TLS ≥ 1.2 enforced; mTLS client cert required and validated; plain HTTP refused |
-| S-05 | Rate limiting / throttling | Excess requests return `429` with `Retry-After`; limits documented |
-| S-06 | Injection | SQLi/NoSQLi/path-traversal payloads in `resourceId` and query params are rejected safely |
+| S-05 | Rate limiting / throttling | Excess requests return `429` (and the institution may return `529` when overloaded); limits documented |
+| S-06 | Injection | SQLi/NoSQLi payloads in `page` / `page-size` query params are rejected safely |
 | S-07 | Data minimization & leakage | Responses contain only contract fields; error messages reveal no stack traces, SQL, internal hosts, or PII |
 | S-08 | Security headers | `Cache-Control: no-store`, `Content-Type: application/json`; no sensitive data cached |
 | S-09 | Logging | Tokens and PII are not written to logs |
@@ -184,9 +187,9 @@ Burp for DAST, manual review + targeted pen test for S-03/S-04.
 
 | Priority | Area | Why |
 |----------|------|-----|
-| P0 | Consent/scope isolation (S-01, S-02, E-03, F-13) | Cross-customer data exposure is the worst-case regulatory + trust failure |
+| P0 | Consent/scope isolation (S-01, S-02, E-03) | Cross-customer data exposure is the worst-case regulatory + trust failure |
 | P0 | AuthN (E-01, E-02, S-03) | Gatekeeper for everything else |
-| P1 | Contract & functional correctness (F-01…F-14) | Downstream institutions depend on this shape |
+| P1 | Contract & functional correctness (F-01…F-11) | Downstream institutions depend on this shape |
 | P1 | Error handling (E-05…E-09) | Stability and no information leakage |
 | P2 | Pagination, performance, resilience | Scale and UX once correctness/security hold |
 

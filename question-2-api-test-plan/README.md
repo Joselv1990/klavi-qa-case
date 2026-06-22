@@ -45,10 +45,9 @@ newman run postman/resources-api.postman_collection.json \
 |---------|-------------------|
 | F-01 List resources – happy path | F-01, F-03, F-09, F-10 (status, schema, header echo, meta) |
 | F-04 List resources – pagination links | F-04, F-05 |
-| F-11 Resource detail – existing id | F-11 |
-| F-12 Resource detail – not found | F-12 |
-| S-01 Consent isolation | S-01, F-13, E-03 (no cross-consent leakage) |
+| S-01 Consent isolation | S-01 (token bound to consent B never returns consent A's resources) |
 | E-01 Missing Authorization | E-01 |
+| E-05 Missing x-fapi-interaction-id | E-05 |
 | E-07 Unsupported Accept | E-07 |
 
 A collection-level pre-request script injects a fresh `x-fapi-interaction-id` (UUID) plus

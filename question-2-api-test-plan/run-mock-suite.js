@@ -25,7 +25,8 @@ setTimeout(() => {
       envVar: [
         { key: 'baseUrl', value: baseUrl },
         { key: 'accessToken', value: 'valid-sandbox-token' },
-        { key: 'otherConsentResourceId', value: 'other-consent-resource' },
+        { key: 'consentBToken', value: 'consent-b-token' },
+        { key: 'consentAResourceId', value: 'rsrc-001' },
       ],
       reporters: ['cli'],
     },

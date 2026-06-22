@@ -1,11 +1,11 @@
 {
   "info": {
-    "name": "Resources API",
-    "description": "Functional, contract, negative and deterministic-security checks for the Resources API. Point {{baseUrl}} at the sandbox and provide {{accessToken}} (and {{otherConsentResourceId}} for the isolation test) via the environment.",
+    "name": "Resources API (Open Finance Brasil v3.0.0)",
+    "description": "Functional, contract, negative and deterministic-security checks for the Resources API (Recursos). Single endpoint: GET /open-banking/resources/v3/resources. Point {{baseUrl}} at the host, and provide {{accessToken}}, {{consentBToken}} and {{consentAResourceId}} via the environment.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "resourceType", "value": "ACCOUNT,CREDIT_CARD_ACCOUNT,LOAN,FINANCING,INVOICE_FINANCING,UNARRANGED_ACCOUNT_OVERDRAFT" },
+    { "key": "resourceType", "value": "ACCOUNT,CREDIT_CARD_ACCOUNT,LOAN,FINANCING,UNARRANGED_ACCOUNT_OVERDRAFT,INVOICE_FINANCING,BANK_FIXED_INCOME,CREDIT_FIXED_INCOME,VARIABLE_INCOME,TREASURE_TITLE,FUND,EXCHANGE" },
     { "key": "resourceStatus", "value": "AVAILABLE,UNAVAILABLE,TEMPORARILY_UNAVAILABLE,PENDING_AUTHORISATION" }
   ],
   "event": [
@@ -14,7 +14,7 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Generate a fresh FAPI interaction id per request and stash it for the echo check.",
+          "// Inject the FAPI headers required by every Resources API call.",
           "const uuid = require('uuid');",
           "const interactionId = uuid.v4();",
           "pm.collectionVariables.set('interactionId', interactionId);",
@@ -33,9 +33,9 @@
         "method": "GET",
         "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
         "url": {
-          "raw": "{{baseUrl}}/resources/v3/resources?page-size=25",
+          "raw": "{{baseUrl}}/open-banking/resources/v3/resources?page-size=25",
           "host": [ "{{baseUrl}}" ],
-          "path": [ "resources", "v3", "resources" ],
+          "path": [ "open-banking", "resources", "v3", "resources" ],
           "query": [ { "key": "page-size", "value": "25" } ]
         }
       },
@@ -69,10 +69,7 @@
               "    pm.expect(validTypes, 'type').to.include(r.type);",
               "    pm.expect(validStatus, 'status').to.include(r.status);",
               "  });",
-              "});",
-              "",
-              "// Capture a real id for the detail tests.",
-              "if (body.data.length) { pm.collectionVariables.set('resourceId', body.data[0].resourceId); }"
+              "});"
             ]
           }
         }
@@ -84,10 +81,10 @@
         "method": "GET",
         "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
         "url": {
-          "raw": "{{baseUrl}}/resources/v3/resources?page-size=1",
+          "raw": "{{baseUrl}}/open-banking/resources/v3/resources?page-size=1&page=1",
           "host": [ "{{baseUrl}}" ],
-          "path": [ "resources", "v3", "resources" ],
-          "query": [ { "key": "page-size", "value": "1" } ]
+          "path": [ "open-banking", "resources", "v3", "resources" ],
+          "query": [ { "key": "page-size", "value": "1" }, { "key": "page", "value": "1" } ]
         }
       },
       "event": [
@@ -99,7 +96,10 @@
               "pm.test('200 OK', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
               "pm.test('at most one record returned', () => pm.expect(body.data.length).to.be.at.most(1));",
-              "pm.test('self link present', () => pm.expect(body.links).to.have.property('self'));",
+              "pm.test('self and first links present', () => {",
+              "  pm.expect(body.links).to.have.property('self');",
+              "  pm.expect(body.links).to.have.property('first');",
+              "});",
               "pm.test('next link present when more pages exist', () => {",
               "  if (body.meta.totalPages > 1) { pm.expect(body.links.next, 'links.next').to.be.a('string'); }",
               "});"
@@ -109,14 +109,14 @@
       ]
     },
     {
-      "name": "F-11 Resource detail - existing id",
+      "name": "S-01 Consent isolation - token bound to another consent",
       "request": {
         "method": "GET",
-        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "header": [ { "key": "Authorization", "value": "Bearer {{consentBToken}}" } ],
         "url": {
-          "raw": "{{baseUrl}}/resources/v3/resources/{{resourceId}}",
+          "raw": "{{baseUrl}}/open-banking/resources/v3/resources",
           "host": [ "{{baseUrl}}" ],
-          "path": [ "resources", "v3", "resources", "{{resourceId}}" ]
+          "path": [ "open-banking", "resources", "v3", "resources" ]
         }
       },
       "event": [
@@ -127,61 +127,9 @@
             "exec": [
               "pm.test('200 OK', () => pm.response.to.have.status(200));",
               "const body = pm.response.json();",
-              "pm.test('returns the requested resource', () => {",
-              "  const data = Array.isArray(body.data) ? body.data[0] : body.data;",
-              "  pm.expect(data.resourceId).to.eql(pm.collectionVariables.get('resourceId'));",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "F-12 Resource detail - not found",
-      "request": {
-        "method": "GET",
-        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
-        "url": {
-          "raw": "{{baseUrl}}/resources/v3/resources/non-existent-id-000000",
-          "host": [ "{{baseUrl}}" ],
-          "path": [ "resources", "v3", "resources", "non-existent-id-000000" ]
-        }
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
-              "pm.test('no server error leaked', () => pm.expect(pm.response.text()).to.not.match(/stack|sql|exception/i));"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "S-01 Consent isolation - other consent's resource",
-      "request": {
-        "method": "GET",
-        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
-        "url": {
-          "raw": "{{baseUrl}}/resources/v3/resources/{{otherConsentResourceId}}",
-          "host": [ "{{baseUrl}}" ],
-          "path": [ "resources", "v3", "resources", "{{otherConsentResourceId}}" ]
-        }
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('access to another consent is denied (403 or 404)', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));",
-              "pm.test('does not leak the other consent data', () => {",
-              "  if (pm.response.code === 403 || pm.response.code === 404) {",
-              "    pm.expect(pm.response.text()).to.not.include(pm.environment.get('otherConsentResourceId'));",
-              "  }",
+              "pm.test('returns only the resources of the bound consent', () => {",
+              "  const ids = body.data.map((r) => r.resourceId);",
+              "  pm.expect(ids, 'must not expose another consent resource').to.not.include(pm.environment.get('consentAResourceId'));",
               "});"
             ]
           }
@@ -194,9 +142,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/resources/v3/resources",
+          "raw": "{{baseUrl}}/open-banking/resources/v3/resources",
           "host": [ "{{baseUrl}}" ],
-          "path": [ "resources", "v3", "resources" ]
+          "path": [ "open-banking", "resources", "v3", "resources" ]
         }
       },
       "event": [
@@ -212,17 +160,14 @@
       ]
     },
     {
-      "name": "E-07 Unsupported Accept",
+      "name": "E-05 Missing x-fapi-interaction-id",
       "request": {
         "method": "GET",
-        "header": [
-          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-          { "key": "Accept", "value": "text/xml" }
-        ],
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
         "url": {
-          "raw": "{{baseUrl}}/resources/v3/resources",
+          "raw": "{{baseUrl}}/open-banking/resources/v3/resources",
           "host": [ "{{baseUrl}}" ],
-          "path": [ "resources", "v3", "resources" ]
+          "path": [ "open-banking", "resources", "v3", "resources" ]
         }
       },
       "event": [
@@ -231,7 +176,42 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "// override the collection-level Accept=application/json for this negative case",
+              "// undo the collection-level injection for this negative case",
+              "pm.request.headers.remove('x-fapi-interaction-id');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "E-07 Unsupported Accept",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Accept", "value": "text/xml" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/open-banking/resources/v3/resources",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "open-banking", "resources", "v3", "resources" ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
               "pm.request.headers.upsert({ key: 'Accept', value: 'text/xml' });"
             ]
           }
